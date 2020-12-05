@@ -5,14 +5,59 @@ from AST import *
 
 class CheckSuite(unittest.TestCase):
 
-    def test_undeclared_function(self):
+    def test_0(self):
         """Simple program: main"""
-        input = """Function: main
-                   Body: 
-                        foo();
-                   EndBody."""
-        expect = str(Undeclared(Function(),"foo"))
+        input = """Var: a,a;"""
+        expect = str(Redeclared(VarDecl(Id('a'), [], None), 'a'))
         self.assertTrue(TestChecker.test(input,expect,400))
+
+    def test_1(self):
+        """Simple program: main"""
+        input = """Var: a,b,c,a;"""
+        expect = str(Redeclared(VarDecl(Id('a'), [], None), 'a'))
+        self.assertTrue(TestChecker.test(input,expect,401))
+
+    def test_2(self):
+        """Simple program: main"""
+        input = """
+            Function: main
+            Body:
+                a = 1;
+            EndBody.
+        """
+        expect = str(Undeclared(Assign(Id('a'), IntLiteral(1)), 'a'))
+        self.assertTrue(TestChecker.test(input,expect,402))
+    
+    def test_3(self):
+        """Simple program: main"""
+        input = """
+            Var: a = 1.1;
+            Function: main
+            Body:
+                Var: a = 1;
+                a = 1.1;
+            EndBody.
+        """
+        expect = str(TypeMismatchInStatement(Assign(Id('a'), FloatLiteral(1.1))))
+        self.assertTrue(TestChecker.test(input,expect,403))
+    
+    def test_4(self):
+        """Simple program: main"""
+        input = """
+            Var: a = 1.1;
+            Function: main
+            Parameter: a, a
+            Body:
+                Var: a = 1;
+                a = 1.1;
+            EndBody.
+        """
+        expect = str(TypeMismatchInStatement(Assign(Id('a'), FloatLiteral(1.1))))
+        self.assertTrue(TestChecker.test(input,expect,403))
+
+    # def test_2(self):
+
+
 
     # def test_diff_numofparam_stmt(self):
     #     """Complex program"""
