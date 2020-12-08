@@ -467,7 +467,7 @@ Symbol("printStrLn",MType([StringType()],VoidType()))]
             if array_type != value['type']:
                 raise TypeMismatchInExpression(ast)
         return {
-            'type' array_type
+            'type': array_type
         }
 
 
