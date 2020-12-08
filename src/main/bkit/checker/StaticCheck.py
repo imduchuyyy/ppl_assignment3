@@ -432,7 +432,10 @@ Symbol("printStrLn",MType([StringType()],VoidType()))]
         }
 
     def visitArrayCell(self, ast, c):
-        pass
+        for item in ast.idx:
+            index = self.visit(item, c)
+            if index['type'] != 'IntType':
+                raise TypeMismatchInExpression(ctx)
     
     def visitIntLiteral(self, ast, c):
         return {
@@ -463,8 +466,9 @@ Symbol("printStrLn",MType([StringType()],VoidType()))]
                 continue
             if array_type != value['type']:
                 raise TypeMismatchInExpression(ast)
-        return
-        return 
+        return {
+            'type' array_type
+        }
 
 
 
