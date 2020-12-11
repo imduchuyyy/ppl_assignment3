@@ -4,7 +4,6 @@ from StaticError import *
 from AST import *
 
 class CheckSuite(unittest.TestCase):
-
     def test_0(self):
         """Simple program: main"""
         input = """Var: a,a;"""
@@ -272,50 +271,80 @@ class CheckSuite(unittest.TestCase):
         """
         expect = str(Undeclared(Identifier(), 'a'))
         self.assertTrue(TestChecker.test(input,expect,417))
-
-    # def test_2(self):
-
-
-
-    # def test_diff_numofparam_stmt(self):
-    #     """Complex program"""
-    #     input = """Function: main  
-    #                Body:
-    #                     printStrLn();
-    #                 EndBody."""
-    #     expect = str(TypeMismatchInStatement(CallStmt(Id("printStrLn"),[])))
-    #     self.assertTrue(TestChecker.test(input,expect,401))
     
-    # def test_diff_numofparam_expr(self):
-    #     """More complex program"""
-    #     input = """Function: main 
-    #                 Body:
-    #                     printStrLn(read(4));
-    #                 EndBody."""
-    #     expect = str(TypeMismatchInExpression(CallExpr(Id("read"),[IntLiteral(4)])))
-    #     self.assertTrue(TestChecker.test(input,expect,402))
+    def test_18(self):
+        input = """ Function: main
+                    Parameter: a
+                    Body:
+                        Var:x;
+                        main(123);
+                        x = main(1);
+                    EndBody."""
+        expect = str(TypeMismatchInStatement(Assign(Id("x"),CallExpr(Id("main"),[IntLiteral(1)]))))
+        self.assertTrue(TestChecker.test(input,expect,418))
 
-    # def test_undeclared_function_use_ast(self):
-    #     """Simple program: main """
-    #     input = Program([FuncDecl(Id("main"),[],([],[
-    #         CallExpr(Id("foo"),[])]))])
-    #     expect = str(Undeclared(Function(),"foo"))
-    #     self.assertTrue(TestChecker.test(input,expect,403))
+    def test_19(self):
+        input = """ Function: main
+                    Parameter: a
+                    Body:
+                        Var:x;
+                        x = 1;
+                        main(2);
+                        x = main(1);
+                    EndBody."""
+        expect = str(TypeMismatchInStatement(Assign(Id("x"),CallExpr(Id("main"),[IntLiteral(1)]))))
+        self.assertTrue(TestChecker.test(input,expect,419))
 
-    # def test_diff_numofparam_expr_use_ast(self):
-    #     """More complex program"""
-    #     input = Program([
-    #             FuncDecl(Id("main"),[],([],[
-    #                 CallStmt(Id("printStrLn"),[
-    #                     CallExpr(Id("read"),[IntLiteral(4)])
-    #                     ])]))])
-    #     expect = str(TypeMismatchInExpression(CallExpr(Id("read"),[IntLiteral(4)])))
-    #     self.assertTrue(TestChecker.test(input,expect,404))
+    def test_diff_numofparam_stmt(self):
+        """Complex program"""
+        input = """Function: main  
+                   Body:
+                        printStrLn();
+                    EndBody."""
+        expect = str(TypeMismatchInStatement(CallStmt(Id("printStrLn"),[])))
+        self.assertTrue(TestChecker.test(input,expect,420))
+    
+    def test_diff_numofparam_expr(self):
+        """More complex program"""
+        input = """Function: main 
+                    Body:
+                        printStrLn(read(4));
+                    EndBody."""
+        expect = str(TypeMismatchInExpression(CallExpr(Id("read"),[IntLiteral(4)])))
+        self.assertTrue(TestChecker.test(input,expect,421))
 
-    # def test_diff_numofparam_stmt_use_ast(self):
-    #     """Complex program"""
-    #     input = Program([
-    #             FuncDecl(Id("main"),[],([],[
-    #                 CallStmt(Id("printStrLn"),[])]))])
-    #     expect = str(TypeMismatchInStatement(CallStmt(Id("printStrLn"),[])))
-    #     self.assertTrue(TestChecker.test(input,expect,405))
+    def test_undeclared_function_use_ast(self):
+        """Simple program: main """
+        input = Program([FuncDecl(Id("main"),[],([],[
+            CallExpr(Id("foo"),[])]))])
+        expect = str(Undeclared(Function(),"foo"))
+        self.assertTrue(TestChecker.test(input,expect,422))
+
+    def test_diff_numofparam_expr_use_ast(self):
+        """More complex program"""
+        input = Program([
+                FuncDecl(Id("main"),[],([],[
+                    CallStmt(Id("printStrLn"),[
+                        CallExpr(Id("read"),[IntLiteral(4)])
+                        ])]))])
+        expect = str(TypeMismatchInExpression(CallExpr(Id("read"),[IntLiteral(4)])))
+        self.assertTrue(TestChecker.test(input,expect,423))
+
+    def test_diff_numofparam_stmt_use_ast(self):
+        """Complex program"""
+        input = Program([
+                FuncDecl(Id("main"),[],([],[
+                    CallStmt(Id("printStrLn"),[])]))])
+        expect = str(TypeMismatchInStatement(CallStmt(Id("printStrLn"),[])))
+        self.assertTrue(TestChecker.test(input,expect,424))
+
+    def test_25(self):
+        input = """ Function: main
+                    Parameter: a
+                    Body:
+                        While(b <= 3)Do
+                            b = 1;
+                        EndWhile.
+                    EndBody."""
+        expect = str(TypeMismatchInStatement(Assign(Id("x"),CallExpr(Id("main"),[IntLiteral(1)]))))
+        self.assertTrue(TestChecker.test(input,expect,425))

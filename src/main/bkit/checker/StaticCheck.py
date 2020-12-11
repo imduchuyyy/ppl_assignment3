@@ -57,7 +57,7 @@ class Environment:
         self.env[new_env] = {
             'list_decl' : [[]],
             'param_check': False,
-            'type': 'none',
+            'type': Unknown(),
             'list_param': []
         }
         self.list_env.append(new_env)
@@ -131,7 +131,7 @@ class Environment:
         for decl in list_decl:
             if decl['name'] == name_decl:
                 return decl['type']
-        return 'none'
+        return Unknown()
 
     def set_return_type(self, return_type):
         self.env[self.current_env]['type'] = return_type
@@ -212,7 +212,7 @@ Symbol("printStrLn",MType([StringType()],VoidType()))]
     def visitVarDecl(self, ast, c):
         id = self.visit(ast.variable, c)
         type_decl = self.visit(ast.varInit, c) if ast.varInit else {
-            'type': 'none'
+            'type': Unknown()
         }
 
         name_variable = id['name']
@@ -243,7 +243,7 @@ Symbol("printStrLn",MType([StringType()],VoidType()))]
         
         c.add_decl({
             'name': name_function,
-            'type': 'none'
+            'type': Unknown()
         })
 
         c.add_env(name_function)
@@ -271,94 +271,98 @@ Symbol("printStrLn",MType([StringType()],VoidType()))]
         if self.check_un_declare(c, lhs_id['name']):
             raise Undeclared(Identifier(), lhs_id['name'])
 
-        type_lhs = lhs_id['type']
-        type_rhs = rhs_exp['type']
+        type_lhs = type(lhs_id['type'])
+        type_rhs = type(rhs_exp['type'])
 
-        if (type_lhs == 'none') and (type_rhs == 'none'):
+        if type_rhs is VoidType:
+            raise TypeMismatchInStatement(ast)
+
+        if (type_lhs is Unknown) and (type_rhs is Unknown):
             raise TypeCannotBeInferred(ast)
-        elif (type_lhs == 'none') and (type_rhs != 'none'):
-            lhs_id['type'] = type_rhs
-        elif (type_lhs != 'none') and (type_rhs == 'none'):
-            rhs_exp['type'] = type_lhs
-        elif (type_lhs != 'none') and (type_rhs != 'none'):
-            if type_lhs != type_rhs:
+        elif (type_lhs is Unknown) and (type_rhs is not Unknown):
+            lhs_id['type'] = rhs_exp['type']
+        elif (type_lhs is not Unknown) and (type_rhs is Unknown):
+            rhs_exp['type'] = lhs_id['type']
+        elif (type_lhs is not Unknown) and (type_rhs is not Unknown):
+            if type_lhs is not type_rhs:
                 raise TypeMismatchInStatement(ast)
 
     def visitBinaryOp(self, ast, c):
         lhs = self.visit(ast.left, c)
         rhs = self.visit(ast.right, c)
         
-        type_lhs = lhs['type']
-        type_rhs = rhs['type']
+        type_lhs = type(lhs['type'])
+        type_rhs = type(rhs['type'])
 
-        if 'StringType' in [type_lhs, type_rhs]:
+
+        if StringType in [type_lhs, type_rhs] or VoidType in [type_lhs, type_rhs]:
             raise TypeMismatchInExpression(ast)
         elif ast.op in ['+.', '-.', '*.', '\.', '=/=', '<.', '>.', '<=.', '>=.']:
-            if type_lhs == 'none': 
-                lhs['type'] = 'FloatType'
-                type_lhs = 'FloatType'
-            if type_rhs == 'none':
-                rhs['type'] = 'FloatType'
-                type_lhs = 'FloatType'
-            if type_lhs != 'FloatType' or type_rhs != 'FloatType':
+            if type_lhs is Unknown: 
+                lhs['type'] = FloatType()
+                type_lhs = FloatType
+            if type_rhs is Unknown:
+                rhs['type'] = FloatType()
+                type_lhs = FloatType
+            if type_lhs is not FloatType or type_rhs is not FloatType:
                 raise TypeMismatchInExpression(ast)
             else:
                 if ast.op in ['+.', '-.', '*.', '\.']:
                     return {
-                        'type': 'FloatType'
+                        'type': FloatType()
                     }
                 else:
                     return {
-                        'type': 'BooleanType'
+                        'type': BoolType()
                     }
         elif ast.op in ['+', '-', '*', '\\', '%', '==', '!=', '<', '>', '<=', '>=']:
-            if type_lhs == 'none': 
-                lhs['type'] = 'IntType'
-                type_lhs = 'IntType'
-            if type_rhs == 'none':
-                rhs['type'] = 'IntType'
-                type_rhs = 'IntType'
+            if type_lhs is Unknown: 
+                lhs['type'] = IntType()
+                type_lhs = IntType
+            if type_rhs is Unknown:
+                rhs['type'] = IntType()
+                type_rhs = IntType
             
-            if type_lhs != 'IntType' or type_rhs != 'IntType':
+            if type_lhs is not IntType or type_rhs is not IntType:
                 raise TypeMismatchInExpression(ast)
             else:
                 if ast.op in ['+', '-', '*', '\\', '%']:
                     return {
-                        'type': 'IntType'
+                        'type': IntType()
                     }
                 else: 
                     return {
-                        'type': 'BooleanType'
+                        'type': BoolType()
                     }
         elif ast.op in ['!', '&&', '||']:
-            if type_lhs == 'none': 
-                lhs['type'] = 'BooleanType'
-                type_lhs = 'BooleanType'
-            if type_rhs == 'none':
-                rhs['type'] = 'BooleanType'
-                type_lhs = 'BooleanType'
+            if type_lhs is Unknown: 
+                lhs['type'] = BoolType()
+                type_lhs = BoolType
+            if type_rhs is Unknown:
+                rhs['type'] = BoolType()
+                type_lhs = BoolType
 
-            if type_lhs != 'BooleanType' or type_rhs != 'BooleanType':
+            if type_lhs is not BoolType or type_rhs is not BoolType:
                 raise TypeMismatchInExpression(ast)
             else:
                 return {
-                    'type': 'BooleanType'
+                    'type': BoolType()
                 }
         else:
             raise TypeMismatchInExpression(ast)
     
     def visitUnaryOp(self, ast, c):
         exp = self.visit(ast.body)
-        type_exp = exp['type']
+        type_exp = type(exp['type'])
 
         if ast.op == '-':
-            if type_exp != 'IntType':
+            if type_exp is not IntType:
                 raise TypeMismatchInExpression(ast)
         elif ast.op == '-.':
-            if type_exp != 'FloatType':
+            if type_exp is not FloatType:
                 raise TypeMismatchInExpression(ast)
         elif ast.op == '!':
-            if type_exp != 'BooleanType':
+            if type_exp is not BoolType:
                 raise TypeMismatchInExpression(ast)
         else:
             raise TypeMismatchInExpression(ast)
@@ -371,6 +375,21 @@ Symbol("printStrLn",MType([StringType()],VoidType()))]
             param_send.append(self.visit(param, c))
 
         method_name = method['name']
+
+        for item in self.global_envi:
+            if item.name == method_name:
+                if len(param_send) != len(item.mtype.intype):
+                    raise TypeMismatchInExpression(ast)
+                
+                for index in range(0, len(item.mtype.intype)):
+                    param_send_index_type = type(param_send[index]['type'])
+                    if param_send_index_type is Unknown:
+                        param_send[index]['type'] = item.mtype.intype()
+                        continue
+                    if param_send_index_type is not item.mtype.intype():
+                        raise TypeMismatchInExpression(ast)
+                c.set_return_type(item.mtype.restype())
+                return method
         
         if method_name not in c.get_list_function_decl():
             raise Undeclared(Function(), method_name)
@@ -381,25 +400,29 @@ Symbol("printStrLn",MType([StringType()],VoidType()))]
             raise TypeMismatchInExpression(ast)
 
         for index in range(0, len(param_list)):
-            if param_list[index]['type'] == 'none':
-                if param_send[index]['type'] == 'none':
+            param_type = type(param_list[index]['type'])
+            param_send_type = type(param_send[index]['type'])
+            if param_type is Unknown:
+                if param_send_type is Unknown:
                     raise TypeCannotBeInferred(ctx)
                 else:
-                    param_list[index]['type'] = param_send[index]['type']
+                    param_list[index]['type'] = param_send_type
                     continue
-            if param_send[index]['type'] != param_list[index]['type']:
+            if param_send_type is not param_type:
                 raise TypeMismatchInExpression(ast)
-
         return c.get_env(method_name)
 
     def visitIf(self, ast, c):
         for item in ast.ifthenStmt:
             expr = self.visit(item[0], c)
 
-            if expr['type'] == 'none':
-                expr['type'] = 'BooleanType'
+            type_expr = type(expr['type'])
 
-            if expr['type'] != 'BooleanType':
+            if type_expr is Unknown:
+                expr['type'] = BoolType()
+                type_expr = BoolType
+
+            if type_expr is not BoolType:
                 raise TypeMismatchInStatement(ast)
             c.add_sub_env()
             for var_decl in item[1]:
@@ -414,25 +437,31 @@ Symbol("printStrLn",MType([StringType()],VoidType()))]
             for stmt in ast.elseStmt[1]:
                 self.visit(stmt, c)
         c.delete_sub_env()
+
     def visitFor(self, ast, c):
         index_for = self.visit(ast.idx1, c)
         expr1 = self.visit(ast.expr1, c)
         expr2 = self.visit(ast.expr2, c)
         expr3 = self.visit(ast.expr3, c)
 
-        if index_for['type'] == 'none':
-            index_for['type'] = 'IntType'
-        
-        if expr1['type'] == 'none':
-            expr1['type'] = 'IntType'
-        
-        if expr2['type'] == 'none':
-            expr2['type'] = 'BooleanType'
-        
-        if expr3['type'] == 'none':
-            expr3['type'] = 'IntType'
+        index_for_type = type(index_for['type'])
+        expr1_type = type(expr1['type'])
+        expr2_type = type(expr2['type'])
+        expr3_type = type(expr3['type'])
 
-        if index_for['type'] != 'IntType' or expr1['type'] != 'IntType' or expr2['type'] != 'BooleanType' or expr3['type'] != 'IntType':
+        if index_for_type is Unknown:
+            index_for['type'] = IntType()
+        
+        if expr1_type is Unknown:
+            expr1['type'] = IntType()
+        
+        if expr2_type is Unknown:
+            expr2['type'] = BoolType()
+        
+        if expr3_type is Unknown:
+            expr3['type'] = IntType()
+
+        if index_for_type is not IntType or expr1_type is not IntType or expr2_type is not BoolType or expr3_type is not IntType:
             raise TypeMismatchInStatement(ast)
         c.add_sub_env()
         for var_decl in ast.loop[0]:
@@ -450,23 +479,31 @@ Symbol("printStrLn",MType([StringType()],VoidType()))]
     def visitReturn(self, ast, c):
         current_env = c.get_env(c.current_env)
         return_expr = {
-            'type': 'VoidType'
+            'type': VoidType()
         }
+
+        current_env_type = type(current_env['type'])
+        
         if ast.expr:
             return_expr = self.visit(ast.expr, c)
 
-        if current_env['type'] == 'none':
-            c.set_return_type(return_expr['type'])
-        elif current_env['type'] != return_expr['type']:
+        return_expr_type = type(return_expr['type'])
+
+        if current_env_type is Unknown:
+            c.set_return_type(return_expr_type)
+        elif current_env_type != return_expr_type:
             raise TypeMismatchInStatement(ctx)
         
 
     def visitDowhile(self, ast, c):
         exp = self.visit(ast.exp, c)
-        if exp['type'] == 'none':
-            exp['type'] = 'BooleanType'
 
-        if exp['type'] != 'BooleanType':
+        exp_type = type(exp['type'])
+
+        if exp_type is Unknown:
+            exp['type'] = BoolType()
+
+        if exp_type is not BoolType:
             raise TypeMismatchInStatement(ast)
         c.add_sub_env()
         for var_decl in ast.sl[0]:
@@ -479,10 +516,12 @@ Symbol("printStrLn",MType([StringType()],VoidType()))]
     def visitWhile(self, ast, c):
         exp = self.visit(ast.exp, c)
 
-        if exp['type'] == 'none':
-            exp['type'] = 'BooleanType'
+        exp_type = type(exp['type'])
 
-        if exp['type'] != 'BooleanType':
+        if exp_type is Unknown:
+            exp['type'] = BoolType()
+
+        if exp_type is not BoolType:
             raise TypeMismatchInStatement(ast)
         c.add_sub_env()
         for var_decl in ast.sl[0]:
@@ -499,6 +538,21 @@ Symbol("printStrLn",MType([StringType()],VoidType()))]
             param_send.append(self.visit(param, c))
 
         method_name = method['name']
+
+        for item in self.global_envi:
+            if item.name == method_name:
+                if len(param_send) != len(item.mtype.intype):
+                    raise TypeMismatchInStatement(ast)
+                
+                for index in range(0, len(item.mtype.intype)):
+                    param_send_index_type = type(param_send[index]['type'])
+                    if param_send_index_type is Unknown:
+                        param_send[index]['type'] = item.mtype.intype()
+                        continue
+                    if param_send_index_type is not item.mtype.intype():
+                        raise TypeMismatchInStatement(ast)
+                c.set_return_type(VoidType())
+                return method
         
         if method_name not in c.get_list_function_decl():
             raise Undeclared(Function(), method_name)
@@ -509,10 +563,19 @@ Symbol("printStrLn",MType([StringType()],VoidType()))]
             raise TypeMismatchInStatement(ast)
 
         for index in range(0, len(param_list)):
-            if param_send[index]['type'] != param_list[index]['type']:
+            param_type = type(param_list[index]['type'])
+            param_send_type = type(param_send[index]['type'])
+            if param_type is Unknown:
+                if param_send_type is Unknown:
+                    raise TypeCannotBeInferred(ctx)
+                else:
+                    param_list[index]['type'] = param_send[index]['type']
+                    continue
+            if param_send_type is not param_type:
                 raise TypeMismatchInStatement(ast)
-
-        return c.get_env(method_name)
+        
+        c.set_return_type(VoidType())
+        return method
 
     def visitId(self, ast, c):
         for item in c.get_list_decl():
@@ -525,38 +588,38 @@ Symbol("printStrLn",MType([StringType()],VoidType()))]
     def visitArrayCell(self, ast, c):
         for item in ast.idx:
             index = self.visit(item, c)
-            if index['type'] != 'IntType':
+            if type(index['type']) is IntType:
                 raise TypeMismatchInExpression(ctx)
     
     def visitIntLiteral(self, ast, c):
         return {
-            'type': 'IntType'
+            'type': IntType()
         }
 
     def visitFloatLiteral(self, ast, c):
         return {
-            'type': 'FloatType'
+            'type': FloatType()
         }
 
     def visitStringLiteral(self, ast, c):
         return {
-            'type': 'StringType'
+            'type': StringType()
         }
 
     def visitBooleanLiteral(self, ast, c):
         return {
-            'type': 'BooleanType'
+            'type': BoolType()
         }
 
     def visitArrayLiteral(self, ast, c):
-        array_type = 'none'
-        for item in ast.value:
-            value = self.visit(item, c)
-            if array_type == 'none':
-                array_type = value['type']
-                continue
-            if array_type != value['type']:
-                raise TypeMismatchInExpression(ast)
-        return {
-            'type': array_type
-        }
+        array_type = Unknown()
+        # for item in ast.value:
+        #     value = self.visit(item, c)
+        #     if array_type is Unknown:
+        #         array_type = value['type']
+        #         continue
+        #     if array_type != value['type']:
+        #         raise TypeMismatchInExpression(ast)
+        # return {
+        #     'type': array_type
+        # }
