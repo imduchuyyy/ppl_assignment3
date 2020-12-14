@@ -71,28 +71,18 @@ class Environment:
     def get_list_env(self):
         return self.list_env
     
-    #wrong
     def get_list_decl(self):
-        # index_current_env = self.list_env.index(self.current_env) if self.list_env.index(self.current_env) < 2 else 2
-        # list_decl = []
-        # print(index_current_env)
-        # for index_env in range(0, index_current_env):
-        #     env_name = self.list_env[index_env]
-        #     for item in self.env[env_name]['list_decl']:
-        #         list_decl = list_decl + item
-        #     if index_env == 0:
-        #         list_decl = list_decl + self.get_param_decl(self.current_env)
         list_decl_global = self.env['program']['list_decl']
         list_param_current_env = self.get_param_decl(self.current_env)
         list_decl_current_env = self.env[self.current_env]['list_decl']
         list_decl = []
-        for item in list_decl_global:
-            list_decl = list_decl + item
-        list_decl = list_decl + list_param_current_env
         for item in list_decl_current_env:
             list_decl = list_decl + item
+        list_decl = list_decl + list_param_current_env
+        for item in list_decl_global:
+            list_decl = list_decl + item
         
-        return reversed(list_decl)
+        return list_decl
     
     def get_list_decl_current_env(self):
         return self.env[self.current_env]['list_decl'][0] 
@@ -133,8 +123,8 @@ class Environment:
                 return decl['type']
         return Unknown()
 
-    def set_return_type(self, return_type):
-        self.env[self.current_env]['type'] = return_type
+    def set_return_type(self, name,return_type):
+        self.env[name]['type'] = return_type
     
     def get_env(self, name):
         return self.env[name]
@@ -178,7 +168,6 @@ Symbol("printStrLn",MType([StringType()],VoidType()))]
 
     def check_un_declare(self, env, name):
         list_decl = env.get_list_decl()
-        list_param = env.get_param_decl(env.get_current_env())
         for decl in list_decl:
             if decl['name'] == name:
                 return False
@@ -268,12 +257,17 @@ Symbol("printStrLn",MType([StringType()],VoidType()))]
         lhs_id = self.visit(ast.lhs, c)
         rhs_exp = self.visit(ast.rhs, c)
 
-        if self.check_un_declare(c, lhs_id['name']):
-            raise Undeclared(Identifier(), lhs_id['name'])
+        if type(ast.lhs) is Id:
+            if self.check_un_declare(c, lhs_id['name']):
+                raise Undeclared(Identifier(), lhs_id['name'])
 
+        if type(ast.rhs) is Id:
+            if self.check_un_declare(c, rhs_exp['name']):
+                raise Undeclared(Identifier(), rhs_exp['name'])
+            
         type_lhs = type(lhs_id['type'])
         type_rhs = type(rhs_exp['type'])
-
+    
         if type_rhs is VoidType:
             raise TypeMismatchInStatement(ast)
 
@@ -290,7 +284,15 @@ Symbol("printStrLn",MType([StringType()],VoidType()))]
     def visitBinaryOp(self, ast, c):
         lhs = self.visit(ast.left, c)
         rhs = self.visit(ast.right, c)
+
+        if type(ast.right) is Id:
+            if self.check_un_declare(c, rhs["name"]):
+                raise Undeclared(Identifier(), rhs['name'])
         
+        if type(ast.left) is Id:
+            if self.check_un_declare(c, lhs["name"]):
+                raise Undeclared(Identifier(), lhs['name'])
+
         type_lhs = type(lhs['type'])
         type_rhs = type(rhs['type'])
 
@@ -340,7 +342,7 @@ Symbol("printStrLn",MType([StringType()],VoidType()))]
                 type_lhs = BoolType
             if type_rhs is Unknown:
                 rhs['type'] = BoolType()
-                type_lhs = BoolType
+                type_rhs = BoolType
 
             if type_lhs is not BoolType or type_rhs is not BoolType:
                 raise TypeMismatchInExpression(ast)
@@ -352,8 +354,16 @@ Symbol("printStrLn",MType([StringType()],VoidType()))]
             raise TypeMismatchInExpression(ast)
     
     def visitUnaryOp(self, ast, c):
-        exp = self.visit(ast.body)
-        type_exp = type(exp['type'])
+        exp = self.visit(ast.body, c)
+
+        if type(ast.body) is Id:
+            if self.check_un_declare(c, exp["name"]):
+                raise Undeclared(Identifier(), exp['name'])
+
+        try:
+            type_exp = type(exp['type'])
+        except: 
+            type_exp = Unknown
 
         if ast.op == '-':
             if type_exp is not IntType:
@@ -366,6 +376,8 @@ Symbol("printStrLn",MType([StringType()],VoidType()))]
                 raise TypeMismatchInExpression(ast)
         else:
             raise TypeMismatchInExpression(ast)
+
+        return exp
 
     def visitCallExpr(self, ast, c):
         method = self.visit(ast.method, c)
@@ -388,7 +400,7 @@ Symbol("printStrLn",MType([StringType()],VoidType()))]
                         continue
                     if param_send_index_type is not item.mtype.intype():
                         raise TypeMismatchInExpression(ast)
-                c.set_return_type(item.mtype.restype())
+                c.set_return_type(method_name, item.mtype.restype())
                 return method
         
         if method_name not in c.get_list_function_decl():
@@ -402,19 +414,23 @@ Symbol("printStrLn",MType([StringType()],VoidType()))]
         for index in range(0, len(param_list)):
             param_type = type(param_list[index]['type'])
             param_send_type = type(param_send[index]['type'])
-            if param_type is Unknown:
-                if param_send_type is Unknown:
-                    raise TypeCannotBeInferred(ctx)
-                else:
-                    param_list[index]['type'] = param_send_type
-                    continue
-            if param_send_type is not param_type:
+            if param_type is Unknown and param_send_type is Unknown:
+                raise TypeCannotBeInferred(ctx)
+            elif param_type is Unknown and param_send_type is not Unknown:
+                param_list[index]['type'] = param_send[index]['type']
+            elif param_type is not Unknown and param_send_type is Unknown:
+                param_send[index]['type'] = param_list[index]['type']
+            elif param_send_type is not param_type:
                 raise TypeMismatchInExpression(ast)
         return c.get_env(method_name)
 
     def visitIf(self, ast, c):
         for item in ast.ifthenStmt:
             expr = self.visit(item[0], c)
+
+            if type(item[0]) is Id:
+                if self.check_un_declare(c, expr['name']):
+                    raise Undeclared(Identifier(), expr['name'])
 
             type_expr = type(expr['type'])
 
@@ -443,6 +459,21 @@ Symbol("printStrLn",MType([StringType()],VoidType()))]
         expr1 = self.visit(ast.expr1, c)
         expr2 = self.visit(ast.expr2, c)
         expr3 = self.visit(ast.expr3, c)
+
+        if type(ast.idx1) is Id:
+            if self.check_un_declare(c, index_for['name']):
+                raise Undeclared(Identifier(), index_for['name'])
+        
+        if type(ast.expr1) is Id:
+                if self.check_un_declare(c, expr1['name']):
+                    raise Undeclared(Identifier(), expr1['name'])
+
+        if type(ast.expr2) is Id:
+            if self.check_un_declare(c, expr2['name']):
+                raise Undeclared(Identifier(), expr2['name'])
+        if type(ast.expr3) is Id:
+                if self.check_un_declare(c, expr3['name']):
+                    raise Undeclared(Identifier(), expr3['name'])
 
         index_for_type = type(index_for['type'])
         expr1_type = type(expr1['type'])
@@ -490,13 +521,18 @@ Symbol("printStrLn",MType([StringType()],VoidType()))]
         return_expr_type = type(return_expr['type'])
 
         if current_env_type is Unknown:
-            c.set_return_type(return_expr_type)
+            c.set_return_type(c.current_env, return_expr_type)
         elif current_env_type != return_expr_type:
             raise TypeMismatchInStatement(ctx)
         
 
     def visitDowhile(self, ast, c):
         exp = self.visit(ast.exp, c)
+
+        if type(ast.exp) is Id:
+            if self.check_un_declare(c, exp['name']):
+                raise Undeclared(Identifier(), exp['name'])
+
 
         exp_type = type(exp['type'])
 
@@ -516,10 +552,17 @@ Symbol("printStrLn",MType([StringType()],VoidType()))]
     def visitWhile(self, ast, c):
         exp = self.visit(ast.exp, c)
 
-        exp_type = type(exp['type'])
+        if type(ast.exp) is Id:
+            if self.check_un_declare(c, exp['name']):
+                raise Undeclared(Identifier(), exp['name'])
 
+
+        exp_type = type(exp['type'])
+        
         if exp_type is Unknown:
             exp['type'] = BoolType()
+            exp_type = BoolType
+
 
         if exp_type is not BoolType:
             raise TypeMismatchInStatement(ast)
@@ -551,7 +594,7 @@ Symbol("printStrLn",MType([StringType()],VoidType()))]
                         continue
                     if param_send_index_type is not item.mtype.intype():
                         raise TypeMismatchInStatement(ast)
-                c.set_return_type(VoidType())
+                c.set_return_type(method_name, VoidType())
                 return method
         
         if method_name not in c.get_list_function_decl():
@@ -574,7 +617,7 @@ Symbol("printStrLn",MType([StringType()],VoidType()))]
             if param_send_type is not param_type:
                 raise TypeMismatchInStatement(ast)
         
-        c.set_return_type(VoidType())
+        c.set_return_type(method_name, VoidType())
         return method
 
     def visitId(self, ast, c):
