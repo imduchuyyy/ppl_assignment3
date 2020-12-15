@@ -403,7 +403,7 @@ class CheckSuite(unittest.TestCase):
             Function: main
             Parameter: a
                     Body:
-                        For(a = 1, a < 1, a = b +1)
+                        For(a = 1, a < 1,  b +1)
                         Do a = a + 1; 
                         EndFor.
                     EndBody."""
@@ -415,7 +415,7 @@ class CheckSuite(unittest.TestCase):
             Function: main
             Parameter: a
             Body:
-                For(a = 1, a < 1, a = a +1) Do
+                For(a = 1, a < 1,  a +1) Do
                     Var: a;
                     a = True;
                     main(1);
@@ -436,7 +436,7 @@ class CheckSuite(unittest.TestCase):
             Body:
                 Var: x;
                 x = True;
-                For(a = 1, a < 1, a = a +1) Do
+                For(a = 1, a < 1,  a +1) Do
                     Var: a;
                     a = True;
                     main(1);
@@ -458,7 +458,7 @@ class CheckSuite(unittest.TestCase):
             Body:
                 Var: x;
                 x = True;
-                For(a = 1, a < 1, a = a +1) Do
+                For(a = 1, a < 1,  a +1) Do
                     Var: a;
                     a = True;
                     main(1);
@@ -1076,13 +1076,13 @@ class CheckSuite(unittest.TestCase):
             Var: b = 1;
             Do
                 While bool_of_string("True") Do
-                    b = float_of_int(b);
+                    b = float_to_int(b);
                 EndWhile.
             While True
             EndDo.
         EndBody.
         """
-        expect = str(TypeMismatchInStatement(Assign(Id("b"), CallExpr(Id("float_of_int"), [Id("b")]))))
+        expect = str(TypeMismatchInExpression(CallExpr(Id("float_to_int"), [Id("b")])))
         self.assertTrue(TestChecker.test(input,expect,463))
     
     def test_wrong_param(self):
@@ -1093,13 +1093,13 @@ class CheckSuite(unittest.TestCase):
             Var: b = 1;
             Do
                 While bool_of_string("True") Do
-                    b = float_of_int("string");
+                    b = float_to_int("string");
                 EndWhile.
             While True
             EndDo.
         EndBody.
         """
-        expect = str(TypeMismatchInExpression(CallExpr(Id("float_of_int"), [StringLiteral("string")])))
+        expect = str(TypeMismatchInExpression(CallExpr(Id("float_to_int"), [StringLiteral("string")])))
         self.assertTrue(TestChecker.test(input,expect,464))
     
     def test_return_fun(self):
@@ -1153,7 +1153,7 @@ class CheckSuite(unittest.TestCase):
         Body:
             Do
                 While bool_of_string("True") Do
-                    a = float_of_string("12.3") +. float_of_int(123);
+                    a = float_of_string("12.3") +. float_of_string("12.3");
                     Return a;
                 EndWhile.
             While True
@@ -1169,12 +1169,12 @@ class CheckSuite(unittest.TestCase):
         Function: main
         Parameter: a
         Body:
-            a = int_of_float(1.2);
-            a = float_of_int(1);
+            a = 1.2;
+            a = float_to_int(1.2);
             a = 1;
         EndBody.
         """
-        expect = str(TypeMismatchInStatement(Assign(Id("a"), CallExpr(Id("float_of_int"), [IntLiteral(1)]))))
+        expect = str(TypeMismatchInStatement(Assign(Id("a"), CallExpr(Id("float_to_int"), [FloatLiteral(1.2)]))))
         self.assertTrue(TestChecker.test(input,expect,468))
 
     def test_fun_call(self):
@@ -1222,10 +1222,10 @@ class CheckSuite(unittest.TestCase):
         Parameter: a
         Body:
             a = "string";
-            a = fun(float_of_int(4 % 1), "1");
+            a = 1;
         EndBody.
         """
-        expect = str(TypeMismatchInStatement(Assign(Id("a"), CallExpr(Id("fun"), [CallExpr(Id("float_of_int"), [BinaryOp("%", IntLiteral(4), IntLiteral(1))]), StringLiteral("1")]))))
+        expect = str(TypeMismatchInStatement(Assign(Id("a"), IntLiteral(1))))
         self.assertTrue(TestChecker.test(input,expect,471))
     
     def test_complex_if(self):
@@ -1238,7 +1238,7 @@ class CheckSuite(unittest.TestCase):
         Function: main
         Parameter: a
         Body:
-            If ((a == 1) || (int_of_float(123.3) == 123) && (float_of_int(1) >=. 0.9)) Then
+            If ((a == 1) || (int_of_float(123.3) == 123) && (float_to_int(1.1) >= 0)) Then
                 a = "string";
             EndIf.
         EndBody.
@@ -1537,7 +1537,7 @@ class CheckSuite(unittest.TestCase):
             Parameter: a
             Body:
                 z = -1;
-                For(z = 1, z < z + 1, z = z - 1) Do
+                For(z = 1, z < z + 1, z - 1) Do
                     z = -0.415;
                 EndFor.
             EndBody.
@@ -1552,7 +1552,7 @@ class CheckSuite(unittest.TestCase):
             Parameter: a
             Body:
                 z = -1;
-                For(z = 1, ((!(z == -1)) && (1.2 =/= 1.3)), z = z - 1) Do
+                For(z = 1, ((!(z == -1)) && (1.2 =/= 1.3)),  z - 1) Do
                     z = 124.5;
                 EndFor.
             EndBody.
@@ -1567,7 +1567,7 @@ class CheckSuite(unittest.TestCase):
             Parameter: a
             Body:
                 z = -1;
-                For(z = 1, ((!(z == -1)) && (1.2 =/= 1.3)), z = a - 1) Do
+                For(z = 1, ((!(z == -1)) && (1.2 =/= 1.3)),  a - 1) Do
                     a = "PPL that dang so";
                 EndFor.
             EndBody.
@@ -1620,7 +1620,7 @@ class CheckSuite(unittest.TestCase):
         Function: main
         Body:
             a = read();
-            printStr(a);
+            print(a);
             a = 1;
         EndBody.
         """
@@ -1632,7 +1632,7 @@ class CheckSuite(unittest.TestCase):
         Var: a, b, arr;
         Function: main
         Body:
-            printStr("Done");
+            print("Done");
             a = b;
         EndBody.
         """

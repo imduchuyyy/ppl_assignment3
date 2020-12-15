@@ -140,7 +140,7 @@ class StaticChecker(BaseVisitor):
         self.ast = ast
         self.global_envi = [
 Symbol("int_of_float",MType([FloatType()],IntType())),
-Symbol("float_of_int",MType([IntType()],FloatType())),
+Symbol("float_to_int",MType([FloatType()],IntType())),
 Symbol("int_of_string",MType([StringType()],IntType())),
 Symbol("string_of_int",MType([IntType()],StringType())),
 Symbol("float_of_string",MType([StringType()],FloatType())),
@@ -149,7 +149,7 @@ Symbol("bool_of_string",MType([StringType()],BoolType())),
 Symbol("string_of_bool",MType([BoolType()],StringType())),
 Symbol("read",MType([],StringType())),
 Symbol("printLn",MType([],VoidType())),
-Symbol("printStr",MType([StringType()],VoidType())),
+Symbol("print",MType([StringType()],VoidType())),
 Symbol("printStrLn",MType([StringType()],VoidType()))]
 
     def check_re_declare(self, env, name): 
