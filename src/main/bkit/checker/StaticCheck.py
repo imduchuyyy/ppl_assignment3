@@ -71,10 +71,10 @@ class Environment:
     def get_list_env(self):
         return self.list_env
     
-    def get_list_decl(self):
+    def get_list_decl(self, nameEnv):
         list_decl_global = self.env['program']['list_decl']
-        list_param_current_env = self.get_param_decl(self.current_env)
-        list_decl_current_env = self.env[self.current_env]['list_decl']
+        list_param_current_env = self.get_param_decl(nameEnv)
+        list_decl_current_env = self.env[nameEnv]['list_decl']
         list_decl = []
         for item in list_decl_current_env:
             list_decl = list_decl + item
@@ -93,8 +93,8 @@ class Environment:
     #         if decl['name'] == name:
     #             decl['type'] = new_type
 
-    def add_param_decl(self, param):
-        self.env[self.current_env]['list_param'].append(param)
+    def add_param_decl(self, name, param):
+        self.env[name]['list_param'].append(param)
 
     def get_current_env(self):
         return self.current_env
@@ -117,7 +117,7 @@ class Environment:
         self.env[self.current_env]['list_decl'][0].append(new_decl)
     
     def get_type_decl(self, name_decl):
-        list_decl = self.get_list_decl()
+        list_decl = self.get_list_decl(self.current_env)
         for decl in list_decl:
             if decl['name'] == name_decl:
                 return decl['type']
@@ -166,8 +166,8 @@ Symbol("printStrLn",MType([StringType()],VoidType()))]
         
         return False
 
-    def check_un_declare(self, env, name):
-        list_decl = env.get_list_decl()
+    def check_un_declare(self, env, nameEnv, name):
+        list_decl = env.get_list_decl(nameEnv)
         for decl in list_decl:
             if decl['name'] == name:
                 return False
@@ -187,11 +187,37 @@ Symbol("printStrLn",MType([StringType()],VoidType()))]
         env = Environment()
         env.add_env('program')
 
+        for x in ast.decl:
+            if type(x) is VarDecl:
+                self.visit(x, env)
+
         for item in ast.decl:
             if type(item) is FuncDecl:
-                env.add_function_decl(item.name.name)
+                nameFunc = item.name.name
+                if self.check_re_declare(env, nameFunc):
+                    raise Redeclared(Function(), nameFunc)
+                env.add_decl({
+                    'name': nameFunc,
+                    'dimen': [],
+                    'type': Unknown()
+                })
+                env.add_env(nameFunc)
+                env.add_function_decl(nameFunc)
+                for param in item.param:
+                    nameParam = param.variable.name
+                    if len(list(filter(lambda x: x['name'] == nameParam, env.get_param_decl(nameFunc)))) > 0:
+                        raise Redeclared(Parameter(), nameParam)
+                    new_param = {
+                                "name": nameParam,
+                                'dimen': param.varDimen,
+                                "type": Unknown()
+                            }
+                    env.add_param_decl(nameFunc, new_param)
+                env.current_env = 'program'
 
-        [self.visit(x,env) for x in ast.decl]
+        for x in ast.decl:
+            if type(x) is FuncDecl:
+                self.visit(x, env)
 
         if 'main' not in env.get_list_env():
             if env.get_type_decl('main') is not 'FunctionType':
@@ -210,12 +236,12 @@ Symbol("printStrLn",MType([StringType()],VoidType()))]
             if (c.env[c.current_env]['param_check']):
                 raise Redeclared(Parameter(), name_variable)
             raise Redeclared(Variable(), name_variable)
-
-        if (not c.env[c.current_env]['param_check']):
-            c.add_decl({
-                'name': name_variable,
-                'type': type_decl['type']
-            })
+        
+        c.add_decl({
+            'name': name_variable,
+            'dimen': ast.varDimen,
+            'type': type_decl['type']
+        })
         return {
             'name': name_variable,
             'type': type_decl['type']
@@ -227,23 +253,10 @@ Symbol("printStrLn",MType([StringType()],VoidType()))]
 
         name_function = id['name']
 
-        if self.check_re_declare(c, name_function):
-            raise Redeclared(Function(), name_function)
+        #if self.check_re_declare(c, name_function):
+        #    raise Redeclared(Function(), name_function)
         
-        c.add_decl({
-            'name': name_function,
-            'type': Unknown()
-        })
-
-        c.add_env(name_function)
-
-        c.env[name_function]['param_check'] = True
-
-        for item in ast.param:
-            new_param = self.visit(item, c)
-            c.add_param_decl(new_param)
-
-        c.env[name_function]['param_check'] = False
+        c.current_env = name_function
 
         # visit list decl
         list(map(lambda x: self.visit(x, c), ast.body[0]))
@@ -258,18 +271,19 @@ Symbol("printStrLn",MType([StringType()],VoidType()))]
         rhs_exp = self.visit(ast.rhs, c)
 
         if type(ast.lhs) is Id:
-            if self.check_un_declare(c, lhs_id['name']):
+            if self.check_un_declare(c, c.current_env, lhs_id['name']):
                 raise Undeclared(Identifier(), lhs_id['name'])
 
         if type(ast.rhs) is Id:
-            if self.check_un_declare(c, rhs_exp['name']):
+            if self.check_un_declare(c, c.current_env, rhs_exp['name']):
                 raise Undeclared(Identifier(), rhs_exp['name'])
             
         type_lhs = type(lhs_id['type'])
         type_rhs = type(rhs_exp['type'])
-    
+
         if type_rhs is VoidType:
             raise TypeMismatchInStatement(ast)
+        
 
         if (type_lhs is Unknown) and (type_rhs is Unknown):
             raise TypeCannotBeInferred(ast)
@@ -286,11 +300,11 @@ Symbol("printStrLn",MType([StringType()],VoidType()))]
         rhs = self.visit(ast.right, c)
 
         if type(ast.right) is Id:
-            if self.check_un_declare(c, rhs["name"]):
+            if self.check_un_declare(c, c.current_env, rhs["name"]):
                 raise Undeclared(Identifier(), rhs['name'])
         
         if type(ast.left) is Id:
-            if self.check_un_declare(c, lhs["name"]):
+            if self.check_un_declare(c, c.current_env,lhs["name"]):
                 raise Undeclared(Identifier(), lhs['name'])
 
         type_lhs = type(lhs['type'])
@@ -305,7 +319,7 @@ Symbol("printStrLn",MType([StringType()],VoidType()))]
                 type_lhs = FloatType
             if type_rhs is Unknown:
                 rhs['type'] = FloatType()
-                type_lhs = FloatType
+                type_rhs = FloatType
             if type_lhs is not FloatType or type_rhs is not FloatType:
                 raise TypeMismatchInExpression(ast)
             else:
@@ -357,7 +371,7 @@ Symbol("printStrLn",MType([StringType()],VoidType()))]
         exp = self.visit(ast.body, c)
 
         if type(ast.body) is Id:
-            if self.check_un_declare(c, exp["name"]):
+            if self.check_un_declare(c, c.current_env, exp["name"]):
                 raise Undeclared(Identifier(), exp['name'])
 
         try:
@@ -383,8 +397,13 @@ Symbol("printStrLn",MType([StringType()],VoidType()))]
         method = self.visit(ast.method, c)
         param_send = []
 
-        for param in ast.param:
-            param_send.append(self.visit(param, c))
+        for item in ast.param:
+            param = self.visit(item, c)
+            if type(item) is Id:
+                if self.check_un_declare(c, c.current_env, param['name']):
+                    raise Undeclared(Identifier(), param['name']) 
+            param_send.append(param)
+
 
         method_name = method['name']
 
@@ -395,13 +414,16 @@ Symbol("printStrLn",MType([StringType()],VoidType()))]
                 
                 for index in range(0, len(item.mtype.intype)):
                     param_send_index_type = type(param_send[index]['type'])
+                    param_index_type = type(item.mtype.intype[index])
                     if param_send_index_type is Unknown:
-                        param_send[index]['type'] = item.mtype.intype()
+                        param_send[index]['type'] = item.mtype.intype[index]
                         continue
-                    if param_send_index_type is not item.mtype.intype():
+                    if param_send_index_type is not param_index_type:
                         raise TypeMismatchInExpression(ast)
-                c.set_return_type(method_name, item.mtype.restype())
-                return method
+                return {
+                    'name': method_name,
+                    'type': item.mtype.restype
+                }
         
         if method_name not in c.get_list_function_decl():
             raise Undeclared(Function(), method_name)
@@ -415,13 +437,14 @@ Symbol("printStrLn",MType([StringType()],VoidType()))]
             param_type = type(param_list[index]['type'])
             param_send_type = type(param_send[index]['type'])
             if param_type is Unknown and param_send_type is Unknown:
-                raise TypeCannotBeInferred(ctx)
+                raise TypeCannotBeInferred(ast)
             elif param_type is Unknown and param_send_type is not Unknown:
                 param_list[index]['type'] = param_send[index]['type']
             elif param_type is not Unknown and param_send_type is Unknown:
                 param_send[index]['type'] = param_list[index]['type']
             elif param_send_type is not param_type:
                 raise TypeMismatchInExpression(ast)
+
         return c.get_env(method_name)
 
     def visitIf(self, ast, c):
@@ -429,7 +452,7 @@ Symbol("printStrLn",MType([StringType()],VoidType()))]
             expr = self.visit(item[0], c)
 
             if type(item[0]) is Id:
-                if self.check_un_declare(c, expr['name']):
+                if self.check_un_declare(c, c.current_env, expr['name']):
                     raise Undeclared(Identifier(), expr['name'])
 
             type_expr = type(expr['type'])
@@ -461,18 +484,18 @@ Symbol("printStrLn",MType([StringType()],VoidType()))]
         expr3 = self.visit(ast.expr3, c)
 
         if type(ast.idx1) is Id:
-            if self.check_un_declare(c, index_for['name']):
+            if self.check_un_declare(c,  c.current_env,index_for['name']):
                 raise Undeclared(Identifier(), index_for['name'])
         
         if type(ast.expr1) is Id:
-                if self.check_un_declare(c, expr1['name']):
+                if self.check_un_declare(c,  c.current_env,expr1['name']):
                     raise Undeclared(Identifier(), expr1['name'])
 
         if type(ast.expr2) is Id:
-            if self.check_un_declare(c, expr2['name']):
+            if self.check_un_declare(c,  c.current_env,expr2['name']):
                 raise Undeclared(Identifier(), expr2['name'])
         if type(ast.expr3) is Id:
-                if self.check_un_declare(c, expr3['name']):
+                if self.check_un_declare(c,  c.current_env,expr3['name']):
                     raise Undeclared(Identifier(), expr3['name'])
 
         index_for_type = type(index_for['type'])
@@ -520,17 +543,19 @@ Symbol("printStrLn",MType([StringType()],VoidType()))]
 
         return_expr_type = type(return_expr['type'])
 
-        if current_env_type is Unknown:
-            c.set_return_type(c.current_env, return_expr_type)
+        if current_env_type is Unknown and return_expr_type is not Unknown:
+            c.set_return_type(c.current_env, return_expr['type'])
+        elif current_env_type is not Unknown and return_expr_type is Unknown:
+            return_expr['type'] = current_env['type']
         elif current_env_type != return_expr_type:
-            raise TypeMismatchInStatement(ctx)
+            raise TypeMismatchInStatement(ast)
         
 
     def visitDowhile(self, ast, c):
         exp = self.visit(ast.exp, c)
 
         if type(ast.exp) is Id:
-            if self.check_un_declare(c, exp['name']):
+            if self.check_un_declare(c,  c.current_env,exp['name']):
                 raise Undeclared(Identifier(), exp['name'])
 
 
@@ -553,7 +578,7 @@ Symbol("printStrLn",MType([StringType()],VoidType()))]
         exp = self.visit(ast.exp, c)
 
         if type(ast.exp) is Id:
-            if self.check_un_declare(c, exp['name']):
+            if self.check_un_declare(c, c.current_env, exp['name']):
                 raise Undeclared(Identifier(), exp['name'])
 
 
@@ -577,8 +602,12 @@ Symbol("printStrLn",MType([StringType()],VoidType()))]
         method = self.visit(ast.method, c)
         param_send = []
 
-        for param in ast.param:
-            param_send.append(self.visit(param, c))
+        for item in ast.param:
+            param = self.visit(item, c)
+            if type(item) is Id:
+                if self.check_un_declare(c, c.current_env, param['name']):
+                    raise Undeclared(Identifier(), param['name']) 
+            param_send.append(param)
 
         method_name = method['name']
 
@@ -589,13 +618,16 @@ Symbol("printStrLn",MType([StringType()],VoidType()))]
                 
                 for index in range(0, len(item.mtype.intype)):
                     param_send_index_type = type(param_send[index]['type'])
+                    param_index_type = type(item.mtype.intype[index])
                     if param_send_index_type is Unknown:
-                        param_send[index]['type'] = item.mtype.intype()
+                        param_send[index]['type'] = item.mtype.intype[index]
                         continue
-                    if param_send_index_type is not item.mtype.intype():
+                    if param_send_index_type is not param_index_type:
                         raise TypeMismatchInStatement(ast)
-                c.set_return_type(method_name, VoidType())
-                return method
+                return {
+                    'name': method_name,
+                    'type': item.mtype.restype
+                }
         
         if method_name not in c.get_list_function_decl():
             raise Undeclared(Function(), method_name)
@@ -610,7 +642,7 @@ Symbol("printStrLn",MType([StringType()],VoidType()))]
             param_send_type = type(param_send[index]['type'])
             if param_type is Unknown:
                 if param_send_type is Unknown:
-                    raise TypeCannotBeInferred(ctx)
+                    raise TypeCannotBeInferred(ast)
                 else:
                     param_list[index]['type'] = param_send[index]['type']
                     continue
@@ -621,7 +653,7 @@ Symbol("printStrLn",MType([StringType()],VoidType()))]
         return method
 
     def visitId(self, ast, c):
-        for item in c.get_list_decl():
+        for item in c.get_list_decl(c.current_env):
             if item['name'] == ast.name:
                 return item
         return {
@@ -629,10 +661,12 @@ Symbol("printStrLn",MType([StringType()],VoidType()))]
         }
 
     def visitArrayCell(self, ast, c):
+        arr = self.visit(ast.arr, c)
         for item in ast.idx:
             index = self.visit(item, c)
-            if type(index['type']) is IntType:
-                raise TypeMismatchInExpression(ctx)
+            if type(index['type']) is not IntType:
+                raise TypeMismatchInExpression(ast)
+        return arr
     
     def visitIntLiteral(self, ast, c):
         return {
@@ -656,13 +690,13 @@ Symbol("printStrLn",MType([StringType()],VoidType()))]
 
     def visitArrayLiteral(self, ast, c):
         array_type = Unknown()
-        # for item in ast.value:
-        #     value = self.visit(item, c)
-        #     if array_type is Unknown:
-        #         array_type = value['type']
-        #         continue
-        #     if array_type != value['type']:
-        #         raise TypeMismatchInExpression(ast)
-        # return {
-        #     'type': array_type
-        # }
+        type_item  = Unknown
+        for item in ast.value:
+            value = self.visit(item, c)
+            if type_item is Unknown:
+                type_item = type(value['type'])
+            elif type_item is not type(value['type']):
+                raise InvalidArrayLiteral(ast)
+        return {
+            'type':type_item
+        }
